@@ -12,28 +12,45 @@
       packageOverrides = { };
       source = "${src}/src";
     }) // {
-#      nixosModules.etherpad = { config, lib, pkgs }: {
-#        options.services.etherpad = {
-#          enable = mkEnableOption "Enable etherpad server";
-#          statePath = mkOption {
-#            default = "/var/lib/etherpad";
-#            description =
-#              "Folder to store runtime data (Database, uploads, etc)";
-#            type = types.str;
-#          };
-#          config = mkOption {
-#            default = "";
-#            description = "Etherpad configuration";
-#          };
-#        };
-#
-#        config = mkIf cfg.enable {
-#          systemd.tmpfile.rules = [
-#
-#          ];
-#
-#        config = { };
-#      };
+      nixosModules.etherpad = { config, lib, pkgs }:
+        with lib;
+        let
+          cfg = config.services.etherpad;
+          user = "etherpad";
+          group = "etherpad";
+          statePath = cfg.statePath;
+        in {
+          options.services.etherpad = {
+            enable = mkEnableOption "Enable etherpad server";
+            statePath = mkOption {
+              default = "/var/lib/etherpad";
+              description =
+                "Folder to store runtime data (Database, uploads, etc)";
+              type = types.str;
+            };
+            config = mkOption {
+              default = "";
+              description = "Etherpad configuration";
+            };
+          };
 
+          config = mkIf cfg.enable {
+            systemd.tmpfile.rules =
+              [ "d ${statePath} 0750 ${user} ${group} - -" ];
+            systemd.services.etherpad = {
+              wantedBy = [ "multi-user.target" ];
+              after = [ "netowrk.target" ];
+              description = "Start the etherpad server.";
+              serviceConfig = {
+                WorkingDirectory =
+                  "${etherpad}/lib/node_modules/ep_etherpad-lite/";
+                ExecStart = "${pkgs.nodejs}/bin/node node/server.js";
+                User = user;
+                Group = group;
+              };
+            };
+          };
+
+        };
     };
 }
